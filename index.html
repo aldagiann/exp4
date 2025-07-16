@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pixeles con Superficies y Degradé</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      background: black;
+      overflow: hidden;
+      width: 100%; height: 100%;
+    }
+    svg {
+      width: 100%; height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <svg id="canvas"></svg>
+
+  <script>
+    const svg = document.getElementById("canvas");
+    const pixels = [];
+    const surfaces = [];
+    const numPixels = 100;
+
+    class Pixel {
+      constructor() {
+        this.size = 4;
+        this.x = Math.random() * window.innerWidth;
+        this.y = Math.random() * window.innerHeight;
+        this.vx = (Math.random() - 0.5) * 3;
+        this.vy = (Math.random() - 0.5) * 3;
+
+        this.rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        this.rect.setAttribute("width", this.size);
+        this.rect.setAttribute("height", this.size);
+        this.rect.setAttribute("fill", "white");
+        svg.appendChild(this.rect);
+      }
+
+      move() {
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x <= 0 || this.x + this.size >= window.innerWidth) this.vx *= -1;
+        if (this.y <= 0 || this.y + this.size >= window.innerHeight) this.vy *= -1;
+
+        this.rect.setAttribute("x", this.x);
+        this.rect.setAttribute("y", this.y);
+      }
+
+      checkCollision(other) {
+        if (
+          this.x < other.x + other.size &&
+          this.x + this.size > other.x &&
+          this.y < other.y + other.size &&
+          this.y + this.size > other.y
+        ) {
+          // Rebote simple
+          this.vx *= -1;
+          this.vy *= -1;
+          other.vx *= -1;
+          other.vy *= -1;
+
+          createSurface(this, other);
+        }
+      }
+    }
+
+    function createSurface(a, b) {
+      const ax = a.x + a.size / 2;
+      const ay = a.y + a.size / 2;
+      const bx = b.x + b.size / 2;
+      const by = b.y + b.size / 2;
+
+      // Punto medio y un punto desplazado para el "ángulo"
+      const mx = (ax + bx) / 2;
+      const my = (ay + by) / 2;
+      const angle = Math.atan2(by - ay, bx - ax) + Math.PI / 2;
+      const distance = Math.hypot(bx - ax, by - ay) * 0.5;
+
+      const cx = mx + Math.cos(angle) * distance;
+      const cy = my + Math.sin(angle) * distance;
+
+      const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+      polygon.setAttribute("points", `${ax},${ay} ${bx},${by} ${cx},${cy}`);
+      polygon.setAttribute("fill", `url(#grad${surfaces.length})`);
+      polygon.setAttribute("opacity", "0.5");
+
+      // Crear gradiente dinámico
+      const grad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+      grad.setAttribute("id", `grad${surfaces.length}`);
+      grad.setAttribute("x1", "0%");
+      grad.setAttribute("y1", "0%");
+      grad.setAttribute("x2", "100%");
+      grad.setAttribute("y2", "100%");
+
+      const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+      stop1.setAttribute("offset", "0%");
+      stop1.setAttribute("stop-color", "red");
+
+      const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+      stop2.setAttribute("offset", "100%");
+      stop2.setAttribute("stop-color", "green");
+
+      grad.appendChild(stop1);
+      grad.appendChild(stop2);
+      svg.appendChild(grad);
+
+      svg.appendChild(polygon);
+
+      surfaces.push({ a, b, cx, cy, polygon, grad, stop1, stop2 });
+    }
+
+    for (let i = 0; i < numPixels; i++) {
+      pixels.push(new Pixel());
+    }
+
+    function animate() {
+      pixels.forEach(p => p.move());
+
+      for (let i = 0; i < pixels.length; i++) {
+        for (let j = i + 1; j < pixels.length; j++) {
+          pixels[i].checkCollision(pixels[j]);
+        }
+      }
+
+      // Actualizar superficies dinámicamente
+      surfaces.forEach(surface => {
+        const ax = surface.a.x + surface.a.size / 2;
+        const ay = surface.a.y + surface.a.size / 2;
+        const bx = surface.b.x + surface.b.size / 2;
+        const by = surface.b.y + surface.b.size / 2;
+
+        const mx = (ax + bx) / 2;
+        const my = (ay + by) / 2;
+        const angle = Math.atan2(by - ay, bx - ax) + Math.PI / 2;
+        const distance = Math.hypot(bx - ax, by - ay) * 0.5;
+
+        const cx = mx + Math.cos(angle) * distance;
+        const cy = my + Math.sin(angle) * distance;
+
+        surface.polygon.setAttribute("points", `${ax},${ay} ${bx},${by} ${cx},${cy}`);
+
+        // Cambiar degradado dinámico según distancia
+        const t = Math.min(1, distance / 200);
+        surface.stop1.setAttribute("stop-color", `rgb(${255 * (1 - t)},${255 * t},0)`);
+        surface.stop2.setAttribute("stop-color", `rgb(0,${255 * (1 - t)},${255 * t})`);
+      });
+
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
